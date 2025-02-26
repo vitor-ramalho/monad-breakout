@@ -20,6 +20,10 @@ type GlobalState = {
   setIsNativeCurrencyFetching: (newIsNativeCurrencyFetching: boolean) => void;
   targetNetwork: ChainWithAttributes;
   setTargetNetwork: (newTargetNetwork: ChainWithAttributes) => void;
+  isRelayerAuthorized: boolean;
+  setIsRelayerAuthorized: (newIsRelayerAuthorized: boolean) => void;
+  transactionsList: any[];
+  setTransactionsList: (newTransactionsList: any[]) => void;
 };
 
 export const useGlobalState = create<GlobalState>(set => ({
@@ -33,4 +37,9 @@ export const useGlobalState = create<GlobalState>(set => ({
     set(state => ({ nativeCurrency: { ...state.nativeCurrency, isFetching: newValue } })),
   targetNetwork: scaffoldConfig.targetNetworks[0],
   setTargetNetwork: (newTargetNetwork: ChainWithAttributes) => set(() => ({ targetNetwork: newTargetNetwork })),
+  isRelayerAuthorized: false,
+  setIsRelayerAuthorized: (newIsRelayerAuthorized: boolean) =>
+    set(() => ({ isRelayerAuthorized: newIsRelayerAuthorized })),
+  transactionsList: [],
+  setTransactionsList: (newTransactionsList: any[]) => set(() => ({ transactionsList: newTransactionsList })),
 }));
