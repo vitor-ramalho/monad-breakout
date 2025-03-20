@@ -53,13 +53,13 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
 
     if (!ctx) return; // Ensure context is available
 
-    canvas.width = 800;
-    canvas.height = 500;
+    canvas.width = 1000;
+    canvas.height = 600;
 
     // Ball properties
     const ball: Ball = {
       x: canvas.width / 2,
-      y: canvas.height - 30,
+      y: canvas.height - 50,
       dx: 4,
       dy: -4,
       radius: 8,
@@ -70,13 +70,14 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
       width: Math.max(100 - (currentLevel - 1) * 5, 50),
       height: 10,
       x: (canvas.width - (100 - (currentLevel - 1) * 5)) / 2,
+      y: canvas.height - 20,
       dx: 8 + (currentLevel - 1) * 0.5,
     };
 
     const brickRowCount = 8;
     const brickColumnCount = 10;
-    const brickWidth = 75;
-    const brickHeight = 20;
+    const brickWidth = 90;
+    const brickHeight = 25;
     const brickPadding = 10;
     const brickOffsetTop = 50;
     const brickOffsetLeft = (canvas.width - (brickColumnCount * (brickWidth + brickPadding) - brickPadding)) / 2;
@@ -232,7 +233,7 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
 
         if (
           canvas &&
-          ball.y + ball.radius > canvas.height - paddle.height &&
+          ball.y + ball.radius > paddle.y &&
           ball.x > paddle.x &&
           ball.x < paddle.x + paddle.width
         ) {
@@ -272,6 +273,14 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
     setCurrentLevel(level);
   };
 
+  const handleBackToLevelSelection = () => {
+    setLevelSelected(false);
+    setGameStarted(false);
+    setUserLost(false);
+    setScore(0);
+    setGameOver(false);
+  };
+
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-900">
       {!levelSelected ? (
@@ -279,10 +288,23 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
       ) : (
         <>
           <canvas ref={canvasRef} className="border border-white" />
-          <div className="text-white text-xl mt-4">Score: {score}</div>
-          <div className="text-white text-xl mt-4">Level: {currentLevel}</div>
+          <div className="flex gap-4 mt-4">
+            <div className="text-white text-xl">Score: {score}</div>
+            <div className="text-white text-xl">Level: {currentLevel}</div>
+          </div>
           {levelComplete && (
             <div className="text-green-500 text-2xl mt-4 animate-pulse">Level Complete! Next level starting...</div>
+          )}
+          {userLost && (
+            <div className="flex flex-col items-center gap-4 mt-4">
+              <div className="text-red-500 text-2xl">Game Over!</div>
+              <button
+                onClick={handleBackToLevelSelection}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Back to Level Selection
+              </button>
+            </div>
           )}
         </>
       )}
