@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addToQueue, getTransactions } from "~~/app/transactionQueue/queue";
+import { addToQueue, getTransactions } from "~~/services/transactionQueue/queue";
 
 export async function POST(req: Request) {
   try {

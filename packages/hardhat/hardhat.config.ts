@@ -14,9 +14,13 @@ import generateTsAbis from "./scripts/generateTsAbis";
 
 import { vars } from "hardhat/config";
 
-const chainId = Number(vars.get("MONAD_CHAIN_ID"));
-const rpcUrl = vars.get("MONAD_RPC_URL");
-const privateKey = vars.get("PRIVATE_KEY");
+const chainId = Number(process.env.MONAD_CHAIN_ID);
+const rpcUrl = process.env.MONAD_RPC_URL;
+const privateKey = process.env.PRIVATE_KEY || "";
+
+console.log("chainId", chainId);
+console.log("rpcUrl", rpcUrl);
+console.log("privateKey", privateKey);
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -32,17 +36,17 @@ const config: HardhatUserConfig = {
       },
     ],
   },
-  defaultNetwork: "monadDevnet",
+  defaultNetwork: "monad",
   namedAccounts: {
     deployer: {
       default: 0,
     },
   },
   networks: {
-    monadDevnet: {
-      url: vars.get("MONAD_RPC_URL"),
-      accounts: [vars.get("PRIVATE_KEY")],
-      chainId: Number(vars.get("MONAD_CHAIN_ID")),
+    monad: {
+      url: rpcUrl,
+      accounts: [privateKey],
+      chainId: Number(chainId),
     },
   },
   sourcify: {

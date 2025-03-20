@@ -1,5 +1,6 @@
 import { FC, useEffect, useRef, useState } from "react";
 import TransactionTable from "../TransactionTable/TransactionTable";
+import LevelSelection from "./LevelSelection";
 import { Brick } from "./game_utils/createBricks";
 import { createParticles } from "./game_utils/createParticles";
 import { Ball, drawBall } from "./game_utils/drawBall";
@@ -10,7 +11,7 @@ import { drawText } from "./game_utils/drawText";
 import { GetServerSideProps } from "next";
 import { useAccount } from "wagmi";
 import { displayTxResult } from "~~/app/debug/_components/contract";
-import { getTransactions } from "~~/app/transactionQueue/queue";
+import { getTransactions } from "~~/services/transactionQueue/queue";
 import { useRequestLogic } from "~~/services/web3/useRequests";
 
 interface BreakoutGameProps {
@@ -30,6 +31,7 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
   const [playerLevel, setPlayerLevel] = useState<bigint>();
   const [levelComplete, setLevelComplete] = useState(false);
   const [userLost, setUserLost] = useState(false);
+  const [levelSelected, setLevelSelected] = useState(false);
   const particlesRef = useRef<Particle[]>([]);
   const transactionQueue = useRef<Promise<void>>(Promise.resolve());
 
@@ -42,7 +44,7 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
   }, [address]);
 
   useEffect(() => {
-    if (!gameReady) return;
+    if (!gameReady || !levelSelected) return;
 
     const canvas = canvasRef.current;
 
@@ -243,6 +245,10 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
         }
 
         if (!gameOver && !levelComplete) {
+          if (score > 0 && score % 5 === 0) {
+            ball.dx *= 1.1;
+            ball.dy *= 1.1;
+          }
           requestAnimationFrame(update);
         }
       }
@@ -262,14 +268,24 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
       document.removeEventListener("keydown", keyDownHandler);
       document.removeEventListener("keyup", keyUpHandler);
     };
-  }, [gameOver, restart, gameReady, brickHitSound, gameOverSound, address, gameStarted]);
+  }, [gameOver, restart, gameReady, brickHitSound, gameOverSound, address, gameStarted, levelSelected]);
+
+  const handleSelectLevel = (level: number) => {
+    setLevelSelected(true);
+    // Set the player level or any other level-specific logic here
+  };
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-900">
-      <canvas ref={canvasRef} className="border border-white" />
-      <div className="text-white text-xl mt-4">Score: {score}</div>
-      <div className="text-white text-xl mt-4">Level: {displayTxResult(playerLevel)}</div>
-      <TransactionTable transactions={transactions} />
+      {!levelSelected ? (
+        <LevelSelection onSelectLevel={handleSelectLevel} />
+      ) : (
+        <>
+          <canvas ref={canvasRef} className="border border-white" />
+          <div className="text-white text-xl mt-4">Score: {score}</div>
+          <div className="text-white text-xl mt-4">Level: {displayTxResult(playerLevel)}</div>
+        </>
+      )}
     </div>
   );
 };
