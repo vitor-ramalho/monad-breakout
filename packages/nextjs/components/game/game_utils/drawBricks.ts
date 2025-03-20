@@ -69,6 +69,26 @@ export function drawBricks(
           ctx.lineTo(brickX, brickY + brickHeight);
           ctx.closePath();
           ctx.stroke();
+
+          // Draw power-up indicator if brick has one
+          if (brick.hasPowerUp) {
+            const iconSize = 12;
+            const iconX = brickX + brickWidth - iconSize - 5;
+            const iconY = brickY + 5;
+            
+            ctx.fillStyle = brick.powerUpType === 'MULTI_BALL' ? '#FF4444' : '#44FF44';
+            ctx.beginPath();
+            ctx.arc(iconX + iconSize/2, iconY + iconSize/2, iconSize/2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw power-up icon
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const icon = brick.powerUpType === 'MULTI_BALL' ? '×2' : '↔';
+            ctx.fillText(icon, iconX + iconSize/2, iconY + iconSize/2);
+          }
         }
       }
     }

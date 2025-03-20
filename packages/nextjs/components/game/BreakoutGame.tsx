@@ -7,6 +7,7 @@ import { drawBricks } from "./game_utils/drawBricks";
 import { Paddle, drawPaddle } from "./game_utils/drawPaddle";
 import { Particle, drawParticles } from "./game_utils/drawParticles";
 import { drawText } from "./game_utils/drawText";
+import { PowerUp, createPowerUp, drawPowerUp, updatePowerUp, checkPowerUpCollision, activatePowerUp, deactivatePowerUp } from "./game_utils/powerUps";
 import { GetServerSideProps } from "next";
 import { useAccount } from "wagmi";
 import { getTransactions } from "~~/services/transactionQueue/queue";
@@ -16,7 +17,7 @@ interface BreakoutGameProps {
   transactions: any[];
 }
 
-const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
+const BreakoutGame: FC<BreakoutGameProps> = () => {
   const { address } = useAccount();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameOver, setGameOver] = useState(false);
@@ -33,6 +34,9 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
   const [currentLevel, setCurrentLevel] = useState(1);
   const particlesRef = useRef<Particle[]>([]);
   const transactionQueue = useRef<Promise<void>>(Promise.resolve());
+  const [activePowerUps, setActivePowerUps] = useState<PowerUp[]>([]);
+  const fallingPowerUpsRef = useRef<PowerUp[]>([]);
+  const ballsRef = useRef<Ball[]>([]);
 
   const { authorizeRelayer, handleRegisterBrickBroken, handleStartGame } = useRequestLogic();
 
@@ -57,13 +61,15 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
     canvas.height = 600;
 
     // Ball properties
-    const ball: Ball = {
+    const initialBall: Ball = {
       x: canvas.width / 2,
       y: canvas.height - 50,
       dx: 4,
       dy: -4,
       radius: 8,
     };
+    
+    ballsRef.current = [initialBall];
 
     // Paddle properties
     const paddle: Paddle = {
@@ -142,21 +148,36 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
           const brick = bricks[c][r];
           if (brick.status === 1) {
             allBricksBroken = false;
-            if (
-              ball.x > brick.x &&
-              ball.x < brick.x + brickWidth &&
-              ball.y > brick.y &&
-              ball.y < brick.y + brickHeight
-            ) {
-              ball.dy = -ball.dy;
-              brick.currentHits++;
-              handleRegisterBrickBroken(address);
+            
+            // Check collision for each ball
+            for (const ball of ballsRef.current) {
+              if (
+                ball.x > brick.x &&
+                ball.x < brick.x + brickWidth &&
+                ball.y > brick.y &&
+                ball.y < brick.y + brickHeight
+              ) {
+                ball.dy = -ball.dy;
+                brick.currentHits++;
+                handleRegisterBrickBroken(address);
 
-              if (brick.currentHits >= brick.hitsRequired) {
-                brick.status = 0;
-                setScore(prevScore => prevScore + brick.hitsRequired);
-                if (brickHitSound) brickHitSound.play();
-                createParticles(brick.x + brickWidth / 2, brick.y + brickHeight / 2, particlesRef);
+                if (brick.currentHits >= brick.hitsRequired) {
+                  brick.status = 0;
+                  setScore(prevScore => prevScore + brick.hitsRequired);
+                  if (brickHitSound) brickHitSound.play();
+                  createParticles(brick.x + brickWidth / 2, brick.y + brickHeight / 2, particlesRef);
+
+                  // Create power-up if brick had one
+                  if (brick.hasPowerUp && brick.powerUpType) {
+                    const powerUp = createPowerUp(
+                      brick.x + brickWidth / 2 - 10,
+                      brick.y + brickHeight,
+                      brick.powerUpType
+                    );
+                    fallingPowerUpsRef.current.push(powerUp);
+                  }
+                }
+                break;
               }
             }
           }
@@ -209,42 +230,83 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
         if (ctx && canvas) {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
+        
         drawBricks(ctx, bricks, brickProperties);
-        drawBall(ctx, ball);
-        drawPaddle(ctx, canvas, paddle);
         drawParticles(ctx, particlesRef);
-        collisionDetection();
 
-        ball.x += ball.dx;
-        ball.y += ball.dy;
+        // Update and draw all balls
+        for (const ball of ballsRef.current) {
+          drawBall(ctx, ball);
+          ball.x += ball.dx;
+          ball.y += ball.dy;
 
-        if (canvas && (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0)) {
-          ball.dx = -ball.dx;
+          if (canvas && (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0)) {
+            ball.dx = -ball.dx;
+          }
+
+          if (ball.y - ball.radius < 0) {
+            ball.dy = -ball.dy;
+          }
+
+          if (canvas && ball.y + ball.radius > paddle.y && ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
+            ball.dy = -ball.dy;
+          }
         }
 
-        if (ball.y - ball.radius < 0) {
-          ball.dy = -ball.dy;
-        } else if (canvas && ball.y + ball.radius > canvas.height) {
+        // Remove balls that fall below the canvas
+        ballsRef.current = ballsRef.current.filter(ball => {
+          if (!canvas) return true;
+          return ball.y + ball.radius <= canvas.height;
+        });
+
+        // Game over if no balls remain
+        if (ballsRef.current.length === 0) {
           setGameOver(true);
           setUserLost(true);
           if (gameOverSound) gameOverSound.play();
           return;
         }
 
-        if (
-          canvas &&
-          ball.y + ball.radius > paddle.y &&
-          ball.x > paddle.x &&
-          ball.x < paddle.x + paddle.width
-        ) {
-          ball.dy = -ball.dy;
-        }
+        drawPaddle(ctx, canvas, paddle);
 
+        // Move paddle based on key presses
         if (canvas && rightPressed && paddle.x < canvas.width - paddle.width) {
           paddle.x += paddle.dx;
         } else if (leftPressed && paddle.x > 0) {
           paddle.x -= paddle.dx;
         }
+
+        // Update and draw falling power-ups
+        fallingPowerUpsRef.current = fallingPowerUpsRef.current.filter(powerUp => {
+          if (!canvas) return false;
+          updatePowerUp(powerUp);
+          drawPowerUp(ctx, powerUp);
+
+          // Check if power-up is collected by paddle
+          if (checkPowerUpCollision(powerUp, paddle)) {
+            activatePowerUp(powerUp, paddle, ballsRef.current);
+            setActivePowerUps(active => [...active, powerUp]);
+            return false;
+          }
+
+          // Remove power-ups that fall below canvas
+          return powerUp.y <= canvas.height;
+        });
+
+        // Check for expired power-ups
+        setActivePowerUps(prev => {
+          const now = Date.now();
+          const stillActive = prev.filter(powerUp => {
+            if (powerUp.startTime && now - powerUp.startTime >= powerUp.duration) {
+              deactivatePowerUp(powerUp, paddle, ballsRef.current);
+              return false;
+            }
+            return true;
+          });
+          return stillActive;
+        });
+
+        collisionDetection();
 
         if (!gameOver && !levelComplete) {
           requestAnimationFrame(update);
@@ -310,16 +372,6 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
       )}
     </div>
   );
-};
-
-export const getServerSideProps: GetServerSideProps = async () => {
-  const transactions = getTransactions();
-  console.log("SSR transactions", transactions);
-  return {
-    props: {
-      transactions,
-    },
-  };
 };
 
 export default BreakoutGame;
