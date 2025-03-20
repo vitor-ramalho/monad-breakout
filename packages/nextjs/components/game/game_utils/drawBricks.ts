@@ -22,8 +22,19 @@ export function drawBricks(
         brick.x = brickX;
         brick.y = brickY;
         if (ctx) {
-          ctx.fillStyle = "#FFD700";
+          // Draw brick with its color
+          ctx.fillStyle = brick.color;
           ctx.fillRect(brickX, brickY, brickWidth, brickHeight);
+          
+          // Draw hit progress
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '12px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            `${brick.currentHits}/${brick.hitsRequired}`,
+            brickX + brickWidth / 2,
+            brickY + brickHeight / 2 + 4
+          );
         }
       }
     }

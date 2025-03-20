@@ -1,7 +1,6 @@
 import { FC, useEffect, useRef, useState } from "react";
-import TransactionTable from "../TransactionTable/TransactionTable";
 import LevelSelection from "./LevelSelection";
-import { Brick } from "./game_utils/createBricks";
+import { createBricks } from "./game_utils/createBricks";
 import { createParticles } from "./game_utils/createParticles";
 import { Ball, drawBall } from "./game_utils/drawBall";
 import { drawBricks } from "./game_utils/drawBricks";
@@ -10,7 +9,6 @@ import { Particle, drawParticles } from "./game_utils/drawParticles";
 import { drawText } from "./game_utils/drawText";
 import { GetServerSideProps } from "next";
 import { useAccount } from "wagmi";
-import { displayTxResult } from "~~/app/debug/_components/contract";
 import { getTransactions } from "~~/services/transactionQueue/queue";
 import { useRequestLogic } from "~~/services/web3/useRequests";
 
@@ -32,6 +30,7 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
   const [levelComplete, setLevelComplete] = useState(false);
   const [userLost, setUserLost] = useState(false);
   const [levelSelected, setLevelSelected] = useState(false);
+  const [currentLevel, setCurrentLevel] = useState(1);
   const particlesRef = useRef<Particle[]>([]);
   const transactionQueue = useRef<Promise<void>>(Promise.resolve());
 
@@ -68,10 +67,10 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
 
     // Paddle properties
     const paddle: Paddle = {
-      width: 100,
+      width: Math.max(100 - (currentLevel - 1) * 5, 50),
       height: 10,
-      x: (canvas.width - 100) / 2,
-      dx: 8,
+      x: (canvas.width - (100 - (currentLevel - 1) * 5)) / 2,
+      dx: 8 + (currentLevel - 1) * 0.5,
     };
 
     const brickRowCount = 8;
@@ -93,7 +92,7 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
     };
 
     const textProperties = {
-      text: "Press space to start the game",
+      text: `Level ${currentLevel} - Press space to start`,
       x: canvas.width / 2,
       y: canvas.height / 2,
       dx: 2,
@@ -102,15 +101,7 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
       color: "#FFFFFF",
     };
 
-    const bricks: Brick[][] = [];
-    let brickIdCounter = BigInt(1);
-    for (let c = 0; c < brickColumnCount; c++) {
-      bricks[c] = [];
-      for (let r = 0; r < brickRowCount; r++) {
-        bricks[c][r] = { id: brickIdCounter, x: 0, y: 0, status: 1 };
-        brickIdCounter++;
-      }
-    }
+    const bricks = createBricks(brickColumnCount, brickRowCount, currentLevel);
 
     let rightPressed = false;
     let leftPressed = false;
@@ -127,7 +118,7 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
         e.preventDefault();
         if (userLost) {
           resetGame();
-        } else {
+        } else if (!gameStarted) {
           setGameStarted(true);
           setUserLost(false);
           update();
@@ -157,11 +148,15 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
               ball.y < brick.y + brickHeight
             ) {
               ball.dy = -ball.dy;
-              brick.status = 0;
-              setScore(prevScore => prevScore + 1);
-              if (brickHitSound) brickHitSound.play();
-              createParticles(brick.x + brickWidth / 2, brick.y + brickHeight / 2, particlesRef);
+              brick.currentHits++;
               handleRegisterBrickBroken(address);
+
+              if (brick.currentHits >= brick.hitsRequired) {
+                brick.status = 0;
+                setScore(prevScore => prevScore + brick.hitsRequired);
+                if (brickHitSound) brickHitSound.play();
+                createParticles(brick.x + brickWidth / 2, brick.y + brickHeight / 2, particlesRef);
+              }
             }
           }
         }
@@ -169,10 +164,16 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
       if (allBricksBroken) {
         setLevelComplete(true);
         setGameStarted(false);
+        setTimeout(() => {
+          setCurrentLevel(prev => prev + 1);
+          setLevelComplete(false);
+          setGameStarted(false);
+        }, 2000);
       }
     }
 
     function drawBouncingText(ctx: CanvasRenderingContext2D, textProps: any) {
+      if (!canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.font = `${textProps.fontSize}px Arial`;
       ctx.fillStyle = textProps.color;
@@ -245,10 +246,6 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
         }
 
         if (!gameOver && !levelComplete) {
-          if (score > 0 && score % 5 === 0) {
-            ball.dx *= 1.1;
-            ball.dy *= 1.1;
-          }
           requestAnimationFrame(update);
         }
       }
@@ -268,11 +265,11 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
       document.removeEventListener("keydown", keyDownHandler);
       document.removeEventListener("keyup", keyUpHandler);
     };
-  }, [gameOver, restart, gameReady, brickHitSound, gameOverSound, address, gameStarted, levelSelected]);
+  }, [gameOver, restart, gameReady, brickHitSound, gameOverSound, address, gameStarted, levelSelected, currentLevel]);
 
   const handleSelectLevel = (level: number) => {
     setLevelSelected(true);
-    // Set the player level or any other level-specific logic here
+    setCurrentLevel(level);
   };
 
   return (
@@ -283,7 +280,10 @@ const BreakoutGame: FC<BreakoutGameProps> = ({ transactions }) => {
         <>
           <canvas ref={canvasRef} className="border border-white" />
           <div className="text-white text-xl mt-4">Score: {score}</div>
-          <div className="text-white text-xl mt-4">Level: {displayTxResult(playerLevel)}</div>
+          <div className="text-white text-xl mt-4">Level: {currentLevel}</div>
+          {levelComplete && (
+            <div className="text-green-500 text-2xl mt-4 animate-pulse">Level Complete! Next level starting...</div>
+          )}
         </>
       )}
     </div>
